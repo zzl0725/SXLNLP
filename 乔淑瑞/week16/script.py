@@ -46,11 +46,11 @@ class DialogSystem:
 
     def generate_response(self, user_input, memory):
         memory["user_input"] = user_input
-        memory =self.nlu(memory)
+        memory = self.nlu(memory)
         print(memory)
-        memory =self.dst(memory)
-        memory =self.policy(memory)
-        memory =self.nlg(memory)
+        memory = self.dst(memory)
+        memory = self.policy(memory)
+        memory = self.nlg(memory)
         return memory["bot_response"], memory
 
     def nlu(self, memory):
@@ -75,14 +75,17 @@ class DialogSystem:
         # 对话策略，根据当前状态选择下一步动作
         # 如果槽位有欠缺，反问槽位
         # 如果没有欠缺，直接回答
-        if memory["need_slot"] is None:
-            memory["action"] = "answer"
-            # 开放子节点
-            memory["available_nodes"] = self.node_id_to_node_info[memory["hit_intent"]].get("childnode", [])
+        if not memory["is_repeat"]:
+            if memory["need_slot"] is None:
+                memory["action"] = "answer"
+                # 开放子节点
+                memory["available_nodes"] = self.node_id_to_node_info[memory["hit_intent"]].get("childnode", [])
+            else:
+                memory["action"] = "ask"
+                memory["available_nodes"]=[memory["hit_intent"]]
+
         else:
-            memory["action"] = "ask"
-            # 停留在当前节点
-            memory["available_nodes"] = [memory["hit_intent"]]
+            memory["action"] = "repeat"
         return memory
 
     def nlg(self, memory):
@@ -91,11 +94,15 @@ class DialogSystem:
             # 直接回答
             answer = self.node_id_to_node_info[memory["hit_intent"]]["response"]
             memory["bot_response"] = self.replace_slot(answer, memory)
-        else:
+            memory["last_bot_response"] = memory["bot_response"]
+        elif memory["action"] == "ask":
             # 反问
             slot = memory["need_slot"]
             query, _ = self.slot_info[slot]
             memory["bot_response"] = query
+            memory["last_bot_response"] = memory["bot_response"]
+        elif memory["action"] == "repeat":
+            memory["bot_response"]=memory["last_bot_response"]
         return memory
 
     def get_intent(self, memory):
@@ -108,8 +115,13 @@ class DialogSystem:
             if score > max_score:
                 max_score = score
                 hit_intent = node_id
-            memory["hit_intent"] = hit_intent
-            memory["hit_intent_score"] = max_score
+        memory["hit_intent"] = hit_intent
+        memory["hit_intent_score"] = max_score
+
+        if max_score < self.get_sentence_similarity(memory["user_input"], "请再说一遍"):
+            memory["is_repeat"] = True
+        else:
+            memory["is_repeat"] = False
         return memory
 
     def get_node_score(self, node, memory):
@@ -120,6 +132,7 @@ class DialogSystem:
         for node_intent in node_intents:
             sentence_similarity = self.get_sentence_similarity(intent, node_intent)
             scores.append(sentence_similarity)
+
         return max(scores)
 
     def get_sentence_similarity(self, sentence1, sentence2):
@@ -146,6 +159,7 @@ class DialogSystem:
         for slot in slots:
             answer = answer.replace(slot, memory[slot])
         return answer
+
 
 if __name__ == '__main__':
     ds = DialogSystem()
