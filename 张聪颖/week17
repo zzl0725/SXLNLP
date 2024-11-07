@@ -1,0 +1,35 @@
+#用户-物品评分矩阵 user_item_data，其中键是用户，值是用户对物品的评分
+
+from collections import defaultdict
+import math
+
+# 用户物品评分数据示例
+user_item_data = {
+    '用户A': {'物品1': 5, '物品2': 3, '物品3': 2},
+    '用户B': {'物品1': 4, '物品2': 2, '物品4': 4},
+    '用户C': {'物品1': 4, '物品3': 4, '物品4': 5},
+    '用户D': {'物品2': 3, '物品3': 5, '物品4': 1},
+}
+
+# 1. 构建物品相似度矩阵
+def calculate_item_similarity(user_item_data):
+    item_users = defaultdict(set)
+    for user, items in user_item_data.items():
+        for item in items:
+            item_users[item].add(user)
+
+    # 初始化物品相似度矩阵
+    item_similarity = defaultdict(lambda: defaultdict(float))
+
+    # 计算物品的共现矩阵
+    for item, users in item_users.items():
+        for u in users:
+            for v in users:
+                if u == v:
+                    continue
+                item_similarity[item][u] += 1 / math.sqrt(len(users) * len(item_users[v]))
+
+    # 归一化相似度
+    for i, related_items in item_similarity.items():
+        for j, cij in related_items.items():
+            item_similarity[i][j] = cij / math.sqrt(item
